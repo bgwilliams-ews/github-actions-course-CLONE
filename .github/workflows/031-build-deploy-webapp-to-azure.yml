@@ -22,11 +22,12 @@ name: 031-build-deploy-webapp-to-azure
 env:
   AZURE_WEBAPP_NAME: appservice-bwilliams
   DOTNET_VERSION: '10.0.x'
+  PUBLISH_DIR: ${{ github.workspace }}/publish
 
 on:
   push:
     branches:
-      - none          # placeholder branch that never matches; swap to main to enable
+      - none
   workflow_dispatch:
 
 permissions:
@@ -39,10 +40,10 @@ jobs:
       run:
         working-directory: 03-app-dotnet
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Set up .NET Core
-        uses: actions/setup-dotnet@v4
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -58,13 +59,17 @@ jobs:
         run: dotnet build --configuration Release
 
       - name: dotnet publish
-        run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
+        run: dotnet publish -c Release -o "${{ env.PUBLISH_DIR }}"
+
+      - name: Verify publish output
+        run: ls -la "${{ env.PUBLISH_DIR }}"
 
       - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
+          path: ${{ env.PUBLISH_DIR }}
+          if-no-files-found: error
 
   deploy:
     runs-on: ubuntu-latest
@@ -74,9 +79,13 @@ jobs:
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     steps:
       - name: Download artifact from build job
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: .net-app
+          path: ./publish
+
+      - name: Verify package contents
+        run: ls -la ./publish
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
@@ -84,4 +93,4 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: .
+          package: ./publish
